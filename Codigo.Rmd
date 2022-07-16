@@ -1,0 +1,391 @@
+---
+title: "DataMexico"
+author: "Olivia Olvera"
+date: "7/12/2022"
+output: pdf_document
+---
+## Librerias y directorio
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(readr)
+library(dplyr)
+library(hrbrthemes)
+library(ggsci)
+library(ggpubr)
+library(rstatix)
+
+library(tidytext) # for NLP
+library(stringr) # to deal with strings
+library(wordcloud) # to render wordclouds
+library(knitr) # for tables
+library(DT) # for dynamic tables
+library(tm)
+library(tidyr)
+
+setwd("C:/Users/olivi/Box/DataMexico")
+```
+
+## Gasto total en salud por pais
+Fuente: Banco Mundial
+https://data.worldbank.org/indicator/SH.XPD.CHEX.PP.CD?locations=ZJ
+
+```{r, echo=FALSE}
+#Definir paises de LATAM y el Caribe
+
+latam <- c("ABW","ARG","ATG","BHS","BLZ","BOL","BRA","BRB","CHL","COL","CRI","CUB","CUW","CYM",
+           "DMA","DOM","ECU","GRD","GTM","GUY","HND","HTI","JAM","KNA","LCA","MAF","MEX","NIC",
+           "PAN","PER","PRI","PRY","SLV","SUR","SXM","TCA","TTO","URY","VCT","VEN","VGB","VIR")
+
+gasto_gdp <- read_csv("health_spending_WB.csv")
+gasto_gdp <-  as_tibble(gasto_gdp)
+
+#Solo region LATAM y el Caribe
+gasto_gdp <- gasto_gdp %>%
+  filter(Country_Code  %in% latam) %>%
+  pivot_longer(cols = `1960`:`2021`, names_to = "year", values_to = "gasto_salud")
+
+
+```
+```{r fig.height = 6, fig.width = 8}
+#Grafica gasto GDP region latam (2019)
+gasto_gdp %>%
+  filter(year==2019) %>%
+  drop_na(gasto_salud) %>%
+  ggplot(aes(x = reorder(Country_Name, gasto_salud), y = gasto_salud, 
+             fill = ifelse(Country_Code == "MEX", "Highlighted", "Normal"))) + 
+  geom_bar(position = "dodge", stat = "identity",  
+           width = 0.7) +
+  labs(title = "Gasto total en salud (% PIB, 2019)",
+       subtitle = "LATAM y el Caribe",
+       y = "Porcentaje", 
+       x = "", 
+       caption = "Fuente: World Bank")  +
+  theme(panel.background = element_blank(), 
+        plot.title = element_text(size=15, vjust = 2.5),
+        legend.title = element_blank(),
+        legend.position="none", 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 11, margin = margin(r = 15)),
+        axis.title.y = element_text(size = 11, margin = margin(r = 15)),
+        axis.line = element_line(colour = "black", size = .5), 
+        plot.caption=element_text(size=9, hjust=0)) +
+  coord_flip()
+```
+```{r}
+#Porcentaje del PIB destinado a salud: Mexico
+gasto_gdp %>%
+  filter(Country_Code=="MEX", 
+         year==2019) %>%
+  select(gasto_salud)
+```
+
+## Out-of-pocket
+Fuente: Banco Mundial
+https://data.worldbank.org/indicator/SH.XPD.OOPC.CH.ZS?locations=ZJ
+
+```{r}
+out_of_pocket <- read_csv("out_of_pocket_WB.csv")
+out_of_pocket <-  as_tibble(out_of_pocket)
+
+#Solo region LATAM y el Caribe
+out_of_pocket <- out_of_pocket %>%
+  filter(Country_Code  %in% latam) %>%
+  pivot_longer(cols = `1960`:`2021`, names_to = "year", values_to = "gasto_outofpocket")
+```
+
+```{r fig.height = 6, fig.width = 8}
+#Grafica gasto out of pocket region latam (2019)
+
+out_of_pocket %>%
+  filter(year==2019) %>%
+  drop_na(gasto_outofpocket) %>%
+  ggplot(aes(x = reorder(Country_Name, gasto_outofpocket), y = gasto_outofpocket, 
+             fill = ifelse(Country_Code == "MEX", "Highlighted", "Normal"))) + 
+  geom_bar(position = "dodge", stat = "identity",  
+           width = 0.7) +
+  labs(title = "Out-of-pocket (% del gasto en salud, 2019)", 
+       subtitle = "LATAM y el Caribe",
+       y = "Porcentaje", 
+       x = "", 
+       caption = "Fuente: World Bank")  +
+  theme(panel.background = element_blank(), 
+        plot.title = element_text(size=15, vjust = 2.5),
+        legend.title = element_blank(),
+        legend.position="none", 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 11, margin = margin(r = 15)),
+        axis.title.y = element_text(size = 11, margin = margin(r = 15)),
+        axis.line = element_line(colour = "black", size = .5), 
+        plot.caption=element_text(size=9, hjust=0)) +
+  coord_flip()
+```
+
+```{r}
+#Porcentaje de gasto de bolsillo: Mexico
+out_of_pocket %>%
+  filter(Country_Code=="MEX", 
+         year==2019) %>%
+  select(gasto_outofpocket)
+```
+## Desagregacion de gasto de bolsillo
+Source: https://www.inegi.org.mx/app/tabulados/pxwebclient/default.html?pxq=BISE_BISE_Ac0CuayZ_220713150914_7e479a70-05a1-4689-95be-2441cc671ad7
+
+```{r}
+gasto_servicios <- read_csv("PIB_desagregado_Inegi.csv")
+gasto_servicios <-  as_tibble(gasto_servicios) %>%
+  pivot_longer(cols = `2015`:`2020`, names_to = "year", values_to = "gasto_servicios")
+```
+
+
+```{r}
+df2 <- gasto_servicios %>%
+  group_by(year) %>%
+  arrange(year, desc(Indicador)) %>%
+  mutate(lab_ypos = cumsum(gasto_servicios) - 0.5 * gasto_servicios) 
+
+#Crear stacked bar con labels
+ggplot(data = df2, aes(y = gasto_servicios, x = year)) +
+  geom_col(aes(fill = Indicador), width = 0.7)+
+  geom_text(aes(y = lab_ypos, label = gasto_servicios, group = Indicador), color = "white") +
+  labs(title = "Gasto de bolsillo en México, por dimensiones (%)", 
+       y = "Porcentaje", 
+       x = "", 
+       caption = "Fuente: Inegi")  +
+  scale_fill_manual(values = c("#003f5c", "#444e86","#955196","#dd5182","#ff6e54")) +
+  theme(panel.background = element_blank(), 
+        plot.title = element_text(size=15, vjust = 2.5),
+        #legend.title = element_blank(),
+        legend.position="right", 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 11, margin = margin(r = 15)),
+        axis.title.y = element_text(size = 11, margin = margin(r = 15)),
+        axis.line = element_line(colour = "black", size = .5), 
+        plot.caption=element_text(size=9, hjust=0)) 
+
+```
+
+## Gasto de bolsillo e indicadores de salud
+
+#Prevalencia de diabetes y gasto en salud
+
+```{r}
+pop_diabetes<- read_csv("diabetes_WB.csv")
+pop_diabetes <-  as_tibble(pop_diabetes) %>%
+  filter(Country_Code  %in% latam) %>%
+  pivot_longer(cols = `1960`:`2021`, names_to = "year", values_to = "prevalencia_diabetes") %>%
+  filter(year == 2021)
+
+```
+# Correlacion diabetes y gasto en salud
+```{r}
+gasto_gdp %>%
+  filter(year==2019) %>%
+  left_join(pop_diabetes, by = c('Country_Code')) %>%
+  ggplot(aes(x = prevalencia_diabetes, y = gasto_salud)) + 
+  geom_point() +
+  geom_text(hjust = 0, nudge_x = 0.5, size = 3, aes(label = Country_Code)) +
+  geom_smooth(method = lm) +
+  labs(title = "Diabetes y gasto total en salud (% PIB)", 
+       subtitle = "LATAM y el Caribe",
+       y = "Porcentaje del PIB, salud", 
+       x = "Porcentaje de población con diabetes", 
+       caption = "Fuente: World Bank")  +
+  theme(panel.background = element_blank(), 
+        plot.title = element_text(size=15, vjust = 2.5),
+        #legend.title = element_blank(),
+        legend.position="right", 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 11, margin = margin(r = 15)),
+        axis.title.y = element_text(size = 11, margin = margin(r = 15)),
+        axis.line = element_line(colour = "black", size = .5), 
+        plot.caption=element_text(size=9, hjust=0)) 
+
+```
+
+
+# Correlacion diabetes y out-of pocket
+```{r}
+out_of_pocket %>%
+  filter(year==2019) %>%
+  left_join(pop_diabetes, by = c('Country_Code')) %>%
+  ggplot(aes(x = prevalencia_diabetes, y = gasto_outofpocket)) + 
+  geom_point() +
+  geom_text(hjust = 0, nudge_x = 0.5, size = 3, aes(label = Country_Code)) +
+  geom_smooth(method = lm) +
+  labs(title = "Diabetes y gasto de bolsillo en salud (%)",
+       subtitle = "LATAM y el Caribe",
+       y = "Porcentaje de gasto de bolsillo", 
+       x = "Porcentaje de población con diabetes", 
+       caption = "Fuente: World Bank")  +
+  theme(panel.background = element_blank(), 
+        plot.title = element_text(size=15, vjust = 2.5),
+        #legend.title = element_blank(),
+        legend.position="right", 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 11, margin = margin(r = 15)),
+        axis.title.y = element_text(size = 11, margin = margin(r = 15)),
+        axis.line = element_line(colour = "black", size = .5), 
+        plot.caption=element_text(size=9, hjust=0)) 
+```
+
+## Gasto y life expectancy
+```{r}
+
+life_expectancy <- read_csv("lifeexpectancy_WB.csv")
+life_expectancy <-  as_tibble(life_expectancy) %>%
+  filter(Country_Code  %in% latam) %>%
+  pivot_longer(cols = `1960`:`2021`, names_to = "year", values_to = "life_expectancy") %>%
+  filter(year == 2020)
+```
+
+```{r}
+gasto_gdp %>%
+  filter(year==2019) %>%
+  left_join(life_expectancy, by = c('Country_Code')) %>%
+  ggplot(aes(x = life_expectancy, y = gasto_salud)) + 
+  geom_point() +
+  geom_text(hjust = 0, nudge_x = 0.5, size = 3, aes(label = Country_Code)) +
+  geom_smooth(method = lm) +
+  labs(title = "Esperanza de vida y gasto en salud (%)",
+       subtitle = "LATAM y el Caribe",
+       y = "Porcentaje del PIB, salud", 
+       x = "Esperanza de vida", 
+       caption = "Fuente: World Bank")  +
+  theme(panel.background = element_blank(), 
+        plot.title = element_text(size=15, vjust = 2.5),
+        #plot.subtitle.title = element_text(),
+        #legend.title = element_blank(),
+        legend.position="right", 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 11, margin = margin(r = 15)),
+        axis.title.y = element_text(size = 11, margin = margin(r = 15)),
+        axis.line = element_line(colour = "black", size = .5), 
+        plot.caption=element_text(size=9, hjust=0)) 
+
+```
+
+#Gasto de bolsillo y out-of-pocket
+```{r}
+out_of_pocket %>%
+  filter(year==2019) %>%
+  left_join(life_expectancy, by = c('Country_Code')) %>%
+  ggplot(aes(x = life_expectancy, y = gasto_outofpocket)) + 
+  geom_point() +
+  geom_text(hjust = 0, nudge_x = 0.5, size = 3, aes(label = Country_Code)) +
+  geom_smooth(method = lm) +
+  labs(title = "Esperanza de vida y gasto de bolsillo en salud (%)",
+       subtitle = "LATAM y el Caribe",
+       y = "Porcentaje de gasto de bolsillo", 
+       x = "Esperanza de vida", 
+       caption = "Fuente: World Bank")  +
+  theme(panel.background = element_blank(), 
+        plot.title = element_text(size=15, vjust = 2.5),
+        #legend.title = element_blank(),
+        legend.position="right", 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 11, margin = margin(r = 15)),
+        axis.title.y = element_text(size = 11, margin = margin(r = 15)),
+        axis.line = element_line(colour = "black", size = .5), 
+        plot.caption=element_text(size=9, hjust=0)) 
+```
+
+## Text mining: Análisis de los consultorios médicos privados
+
+Fuente: INEGI, DENUES
+
+```{r}
+
+```
+
+```{r}
+#https://richpauloo.github.io/2017-12-29-Using-tidytext-to-make-word-clouds/
+
+consultorios <- read.csv("denue_inegi.csv", encoding = "LATIN-1")
+consultorios <-  as_tibble(consultorios)
+
+CAFS <- consultorios %>%
+  filter(nombre_act == "Consultorios de medicina general del sector privado")
+
+
+```
+
+```{r}
+CAFS %>%
+  select(nom_estab) %>%
+  view()
+```
+
+
+```{r}
+custom_stop_words <- bind_rows(stop_words,
+                               data_frame(word = tm::stopwords("spanish"),
+                                          lexicon = "custom"))
+consultorio_words <- CAFS %>% 
+    unnest_tokens(word, nom_estab) %>%
+    anti_join(custom_stop_words)
+
+consultorio_words <- consultorio_words %>%
+  select(word) %>%
+  count(word, sort = TRUE) %>% 
+  ungroup()
+
+uni_sw <- data.frame(word = c("consultorio","medico","nombre", "medicina", "médico", "consultorios", "medica", "consultorios"))
+
+consultorio_clean <- consultorio_words %>% 
+  anti_join(uni_sw, by = "word")
+
+```
+
+```{r}
+# word cloud
+pal <- brewer.pal(8,"Dark2")
+
+# plot the 50 most common words
+consultorio_clean %>% 
+  with(wordcloud(word, n, random.order = FALSE, max.words = 50, colors=pal))
+```
+
+```{r}
+#contabilizacion de los consultorios medicos privados por estado
+total_CAFS <- CAFS %>%
+  group_by(entidad) %>%
+  summarise(total = n())
+
+#Cambiar nombre de ID para poder hacer el merge con la otra base de datos
+names(total_CAFS)[names(total_CAFS) == "entidad"] <- "state_name_official"
+
+df_mxstate_2020 <- merge(df_mxstate_2020, total_CAFS, by="state_name_official")
+```
+
+## Distribucion geografica de los consultorios medicos privados, absoluta y relativa
+# Mapas
+```{r}
+#devtools::install_github("diegovalle/mxmaps")
+library("mxmaps")
+
+#Absolutos
+df_mxstate_2020$value <-  df_mxstate_2020$total
+mxstate_choropleth(df_mxstate_2020, 
+                   num_colors = 5,
+                   title = "Total de consultorios médicos privados",
+                   legend = "Número de consultorios")
+```
+
+```{r}
+#Relativos
+df_mxstate_2020$value <-  df_mxstate_2020$total / df_mxstate_2020$pop * 100
+mxstate_choropleth(df_mxstate_2020, 
+                   num_colors = 5,
+                   title = "Total de consultorios médicos privados (relativo a población)",
+                   legend = "Número de consultorios")
+```
+
